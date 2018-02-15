@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">CPCoinGame</string>
     <string name="txt_score">Score:</string>
+    <string name="menu_new_game_text">New Game</string>
+    <string name="menu_show_about_text">About</string>
+    <string name="menu_show_highscore_text">Highscores</string>
+    <string name="menu_show_web_page">Web Page</string>
+    <string name="about_txt">This is ME!</string>
 </resources>

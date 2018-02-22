@@ -6,4 +6,7 @@
     <string name="menu_show_highscore_text">Highscores</string>
     <string name="menu_show_web_page">Web Page</string>
     <string name="about_txt">This is ME!</string>
+    <string name="gameEnded">Game Ended</string>
+    <string name="menu_enable_controls">Toggle Controls</string>
+    <string name="menu_toggle_sound">Toggle Sound</string>
 </resources>

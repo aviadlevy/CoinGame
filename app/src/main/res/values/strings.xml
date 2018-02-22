@@ -9,4 +9,12 @@
     <string name="gameEnded">Game Ended</string>
     <string name="menu_enable_controls">Toggle Controls</string>
     <string name="menu_toggle_sound">Toggle Sound</string>
+    <string name="menu_settings">More Settings</string>
+    <string name="menu_set_time">Set Time</string>
+    <string name="menu_time_5">5 sec</string>
+    <string name="menu_time_15">15 sec</string>
+    <string name="menu_time_30">30 sec</string>
+    <string name="menu_time_60">1 min</string>
+    <string name="menu_time_unlimited">Unlimited</string>
+    <string name="menu_stop_game_text">Stop Game</string>
 </resources>

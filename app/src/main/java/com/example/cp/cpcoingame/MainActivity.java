@@ -1,8 +1,14 @@
 package com.example.cp.cpcoingame;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Rect;
+import android.graphics.SurfaceTexture;
+import android.hardware.Camera;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.SoundPool;
@@ -11,6 +17,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Vibrator;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.view.GestureDetectorCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
@@ -26,6 +34,7 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -38,7 +47,7 @@ public class MainActivity extends AppCompatActivity {
     public GridLayout controlLayout = null;
     private int controlLayoutHeight;
     // movement
-    private final int MOVE_DELTA = 50;
+    private final int MOVE_DELTA = 25;
     private static final int PLAYER_X = 350;
     private static final int PLAYER_Y = 500;
     private static final int COIN_X = 100;
@@ -46,8 +55,8 @@ public class MainActivity extends AppCompatActivity {
     private int moveX = MOVE_DELTA;
     private int moveY = 0;
     // timer
-    public final int GAME_TIMER_START_VALUE = 15000;
-    public final int GAME_TIMER_TICK_VALUE = 100;
+    public int gameTimerStartValue = 15000;
+    public final int GAME_TIMER_TICK_VALUE = 50;
     public final int NEW_GAME_DELAY = 300;
     private Timer timer = null;
     // display on screen
@@ -65,6 +74,9 @@ public class MainActivity extends AppCompatActivity {
     private SoundPool soundPool;
     private MediaPlayer mp;
     private boolean isGameRunning;
+    // camera
+    private ImageView snap;
+    private Camera mCamera;
 
     /////////////////////////////////////////////////
     //                 init                        //
@@ -123,45 +135,59 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.menuNewGame:
-                startNewGame();
-                return true;
-            case R.id.menuShowAbout:
-                showAboutScreen();
-                return true;
-            case R.id.menuShowWebPage:
-                showWebPageScreen();
-                return true;
-            case R.id.menuToggleControls:
-                toggleControls(item);
-                return true;
-            case R.id.menuToggleSound:
-                toggleSound(item);
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
-        }
-    }
-
     public Handler mHandler = new Handler(new Handler.Callback() {
         @Override
         public boolean handleMessage(Message msg) {
-            timeRemaining -= GAME_TIMER_TICK_VALUE;
-            TextView timeView = findViewById(R.id.txtTime);
-            String message = "Time: " + (timeRemaining / 1000f);
-            timeView.setText(message);
+            if (gameTimerStartValue != -1) {
+                timeRemaining -= GAME_TIMER_TICK_VALUE;
+                displayTimeRemaining(String.valueOf((timeRemaining / 1000f)));
+            } else {
+                displayTimeRemaining("Unlimited");
+            }
             // if time to finish the game
             if (timeRemaining <= 0) {
                 gameEnded();
             }
-
             move();
             return true;
         }
     });
+
+    private void displayTimeRemaining(String timeRemaining) {
+        TextView timeView = findViewById(R.id.txtTime);
+        String message = "Time: " + timeRemaining;
+        timeView.setText(message);
+    }
+
+    public Camera.PictureCallback mPicture = new Camera.PictureCallback() {
+        public void onPictureTaken(byte[] data, Camera camera) {
+            Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+            // Set ImageView to contain picture taken
+            snap.setImageBitmap(bitmap);
+            // release objects to free memory
+            data = null;
+            mCamera.release();
+            mCamera = null;
+        }
+    };
+
+    private boolean handlePermissions(String permissionsToCheck) {
+        // check if we have needed permission
+        int checkResult = ContextCompat.checkSelfPermission(this, permissionsToCheck);
+        if (checkResult == PackageManager.PERMISSION_DENIED) {
+            // Do we need an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    permissionsToCheck)) {
+                // Show window with rationale
+                Toast.makeText(this, "I need permission", Toast.LENGTH_SHORT).show();
+            }
+            // Now ask for permission
+            ActivityCompat.requestPermissions(this, new String[]{permissionsToCheck},
+                    123);
+            return false; // we still don't have required permission. Try again later
+        }
+        return true; // we have required permission, can continue
+    }
 
     /////////////////////////////////////////////////
     //             movement                        //
@@ -309,6 +335,51 @@ public class MainActivity extends AppCompatActivity {
     //             settings/menu                   //
     /////////////////////////////////////////////////
 
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menuNewGame:
+                startNewGame();
+                return true;
+            case R.id.menuStopGame:
+                gameEnded();
+                return true;
+            case R.id.menuShowAbout:
+                showAboutScreen();
+                return true;
+            case R.id.menuShowWebPage:
+                showWebPageScreen();
+                return true;
+            case R.id.menuToggleControls:
+                toggleControls(item);
+                return true;
+            case R.id.menuToggleSound:
+                toggleSound(item);
+                return true;
+            case R.id.menuTime5:
+                return setGameTime(5000);
+            case R.id.menuTime15:
+                return setGameTime(15000);
+            case R.id.menuTime30:
+                return setGameTime(30000);
+            case R.id.menuTime60:
+                return setGameTime(60000);
+            case R.id.menuTimeUnlimit:
+                gameTimerStartValue = -1;
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    private boolean setGameTime(int gameTimerStartValue) {
+        if (!isGameRunning)
+            this.gameTimerStartValue = gameTimerStartValue;
+        else
+            Toast.makeText(this, "Can't change time while game is running", Toast.LENGTH_SHORT).show();
+        return true;
+    }
+
     private void toggleSound(MenuItem item) {
         isSoundAllowed = !isSoundAllowed;
         if (isSoundAllowed && isGameRunning) {
@@ -361,7 +432,11 @@ public class MainActivity extends AppCompatActivity {
         if (timer != null) {
             timer.cancel();
         }
-        timeRemaining = GAME_TIMER_START_VALUE;
+        if (gameTimerStartValue != -1) {
+            timeRemaining = gameTimerStartValue;
+        } else {
+            timeRemaining = 1;
+        }
         timer = new Timer();
 
 
@@ -371,6 +446,9 @@ public class MainActivity extends AppCompatActivity {
                 mHandler.obtainMessage(1).sendToTarget();
             }
         }, NEW_GAME_DELAY, GAME_TIMER_TICK_VALUE);
+        if (snap != null) {
+            snap.setVisibility(View.GONE);
+        }
         updateScore();
         performStartMusic();
     }
@@ -382,12 +460,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void gameEnded() {
-        timer.cancel();
+        if (gameTimerStartValue != -1) {
+            timer.cancel();
+        }
         switchButtonEnable(false);
         Toast.makeText(this, R.string.gameEnded, Toast.LENGTH_SHORT).show();
         // Get Vibrator from the current Context
         vibrate(LONG_VIBRATION);
         performStopMusic();
+        if (handlePermissions(Manifest.permission.CAMERA)) {
+            try {
+                takeCameraPicture();
+            } catch (IOException e) {
+                Toast.makeText(this, "Failed to take picture", Toast.LENGTH_SHORT).show();
+            }
+        }
         isGameRunning = false;
     }
 
@@ -401,5 +488,27 @@ public class MainActivity extends AppCompatActivity {
         downBtn.setEnabled(enable);
         leftBtn.setEnabled(enable);
         rightBtn.setEnabled(enable);
+    }
+
+    /////////////////////////////////////////////////
+    //               camera                        //
+    /////////////////////////////////////////////////
+
+    private void takeCameraPicture() throws IOException {
+        Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
+        for (int i = 0; i < Camera.getNumberOfCameras(); i++) {
+            Camera.getCameraInfo(i, cameraInfo);
+            if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+                RelativeLayout layoutGame = findViewById(R.id.layoutGame);
+                snap = new ImageView(this);
+                layoutGame.addView(snap);
+                mCamera = Camera.open(i); // get a Camera instance
+                SurfaceTexture st = new SurfaceTexture(MODE_PRIVATE);
+                mCamera.setPreviewTexture(st);
+                mCamera.startPreview();
+                mCamera.takePicture(null, null, mPicture);
+                return;
+            }
+        }
     }
 }

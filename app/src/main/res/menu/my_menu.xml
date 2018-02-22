@@ -4,6 +4,9 @@
         android:id="@+id/menuNewGame"
         android:title="@string/menu_new_game_text" />
     <item
+        android:id="@+id/menuStopGame"
+        android:title="@string/menu_stop_game_text" />
+    <item
         android:id="@+id/menuShowAbout"
         android:title="@string/menu_show_about_text" />
     <item
@@ -13,11 +16,38 @@
         android:id="@+id/menuShowWebPage"
         android:title="@string/menu_show_web_page" />
     <item
-        android:id="@+id/menuToggleSound"
-        android:title="@string/menu_toggle_sound"
-        android:checkable="true"/>
-    <item
-        android:id="@+id/menuToggleControls"
-        android:title="@string/menu_enable_controls"
-        android:checkable="true"/>
+        android:id="@+id/menuSettings"
+        android:title="@string/menu_settings">
+        <menu>
+            <item
+                android:id="@+id/menuSetTime"
+                android:title="@string/menu_set_time">
+                <menu>
+                    <item
+                        android:id="@+id/menuTime5"
+                        android:title="@string/menu_time_5" />
+                    <item
+                        android:id="@+id/menuTime15"
+                        android:title="@string/menu_time_15" />
+                    <item
+                        android:id="@+id/menuTime30"
+                        android:title="@string/menu_time_30" />
+                    <item
+                        android:id="@+id/menuTime60"
+                        android:title="@string/menu_time_60" />
+                    <item
+                        android:id="@+id/menuTimeUnlimit"
+                        android:title="@string/menu_time_unlimited" />
+                </menu>
+            </item>
+            <item
+                android:id="@+id/menuToggleSound"
+                android:checkable="true"
+                android:title="@string/menu_toggle_sound" />
+            <item
+                android:id="@+id/menuToggleControls"
+                android:checkable="true"
+                android:title="@string/menu_enable_controls" />
+        </menu>
+    </item>
 </menu>

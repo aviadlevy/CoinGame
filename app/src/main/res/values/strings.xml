@@ -17,4 +17,6 @@
     <string name="menu_time_60">1 min</string>
     <string name="menu_time_unlimited">Unlimited</string>
     <string name="menu_stop_game_text">Stop Game</string>
+    <string name="default_current_location">No GPS data..</string>
+    <string name="txt_location">Location:</string>
 </resources>

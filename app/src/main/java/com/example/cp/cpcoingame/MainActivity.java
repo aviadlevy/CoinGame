@@ -1,14 +1,21 @@
 package com.example.cp.cpcoingame;
 
 import android.Manifest;
+import android.animation.Animator;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.SoundPool;
@@ -35,6 +42,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -65,6 +74,8 @@ public class MainActivity extends AppCompatActivity {
     // settings
     boolean enableControls = false;
     boolean isSoundAllowed = false;
+    private static final int CAMERA_PERMISSION = 1;
+    private static final int GPS_PERMISSION = 2;
     // sounds
     private static final int LONG_VIBRATION = 500;
     private static final int SHORT_VIBRATION = 50;
@@ -75,8 +86,15 @@ public class MainActivity extends AppCompatActivity {
     private MediaPlayer mp;
     private boolean isGameRunning;
     // camera
-    private ImageView snap;
-    private Camera mCamera;
+    private Camera mCamera = null;
+    private ImageView snap = null;
+    private int rotation = 0;
+    // gps
+    private LocationManager locationManager = null;
+    private LocationListener locationListener = null;
+    private String currentLocation;
+    // animation
+    private int mLongAnimationDuration = 0;
 
     /////////////////////////////////////////////////
     //                 init                        //
@@ -88,6 +106,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         player = findViewById(R.id.robot);
         coin = findViewById(R.id.coin);
+        currentLocation = getString(R.string.default_current_location);
         RelativeLayout layout = findViewById(R.id.layoutGame);
         controlLayout = findViewById(R.id.layoutControl);
         controlLayout.post(() -> {
@@ -97,6 +116,21 @@ public class MainActivity extends AppCompatActivity {
         layout.post(this::startNewGame);
         mDetector = new GestureDetectorCompat(this, new MySimpleGestureListener(this));
         initializeSoundPool();
+        prepareGPSLocation();
+        requestGPSLocation();
+        mLongAnimationDuration = getResources().getInteger(android.R.integer.config_longAnimTime);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        requestGPSLocation();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        locationManager.removeUpdates(locationListener);
     }
 
     private void getHeightControls() {
@@ -159,19 +193,7 @@ public class MainActivity extends AppCompatActivity {
         timeView.setText(message);
     }
 
-    public Camera.PictureCallback mPicture = new Camera.PictureCallback() {
-        public void onPictureTaken(byte[] data, Camera camera) {
-            Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
-            // Set ImageView to contain picture taken
-            snap.setImageBitmap(bitmap);
-            // release objects to free memory
-            data = null;
-            mCamera.release();
-            mCamera = null;
-        }
-    };
-
-    private boolean handlePermissions(String permissionsToCheck) {
+    private boolean handlePermissions(String permissionsToCheck, int requestCode) {
         // check if we have needed permission
         int checkResult = ContextCompat.checkSelfPermission(this, permissionsToCheck);
         if (checkResult == PackageManager.PERMISSION_DENIED) {
@@ -183,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
             }
             // Now ask for permission
             ActivityCompat.requestPermissions(this, new String[]{permissionsToCheck},
-                    123);
+                    requestCode);
             return false; // we still don't have required permission. Try again later
         }
         return true; // we have required permission, can continue
@@ -265,6 +287,7 @@ public class MainActivity extends AppCompatActivity {
             // do collision action
             vibrate(SHORT_VIBRATION);
             performSound();
+            addAnimatedCoin();
             moveCoin();
             updateScore();
         }
@@ -446,9 +469,14 @@ public class MainActivity extends AppCompatActivity {
                 mHandler.obtainMessage(1).sendToTarget();
             }
         }, NEW_GAME_DELAY, GAME_TIMER_TICK_VALUE);
+
         if (snap != null) {
-            snap.setVisibility(View.GONE);
+            RelativeLayout layoutGame = findViewById(R.id.layoutGame);
+            snap.setImageBitmap(null);
+            layoutGame.removeView(snap);
+            snap = null;
         }
+
         updateScore();
         performStartMusic();
     }
@@ -468,7 +496,8 @@ public class MainActivity extends AppCompatActivity {
         // Get Vibrator from the current Context
         vibrate(LONG_VIBRATION);
         performStopMusic();
-        if (handlePermissions(Manifest.permission.CAMERA)) {
+        rotatePlayer();
+        if (handlePermissions(Manifest.permission.CAMERA, CAMERA_PERMISSION)) {
             try {
                 takeCameraPicture();
             } catch (IOException e) {
@@ -498,11 +527,23 @@ public class MainActivity extends AppCompatActivity {
         Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
         for (int i = 0; i < Camera.getNumberOfCameras(); i++) {
             Camera.getCameraInfo(i, cameraInfo);
+            rotation = cameraInfo.orientation;
             if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
                 RelativeLayout layoutGame = findViewById(R.id.layoutGame);
                 snap = new ImageView(this);
                 layoutGame.addView(snap);
                 mCamera = Camera.open(i); // get a Camera instance
+                Camera.Parameters params = mCamera.getParameters();
+                List<Camera.Size> sizes = params.getSupportedPictureSizes();
+                Camera.Size size = sizes.get(0);
+                for (int j = 0; j < sizes.size(); j++) {
+                    if (sizes.get(j).width > 300 && sizes.get(j).width < 500) {
+                        size = sizes.get(j);
+                        break;
+                    }
+                }
+                params.setPictureSize(size.width, size.height);
+                mCamera.setParameters(params);
                 SurfaceTexture st = new SurfaceTexture(MODE_PRIVATE);
                 mCamera.setPreviewTexture(st);
                 mCamera.startPreview();
@@ -510,5 +551,137 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
         }
+    }
+
+    private Camera.PictureCallback mPicture = (data, camera) -> {
+        Bitmap bitmap = BitmapFactory.decodeByteArray(data , 0, data.length);
+        // rotate image
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        Matrix matrix = new Matrix(); // create a matrix for the manipulation
+        matrix.postRotate(rotation);
+        Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width,
+                height, matrix, true);
+        // Set ImageView to contain picture taken
+        snap.setImageBitmap(rotatedBitmap);
+        // release objects to free memory
+        data = null;
+        mCamera.release();
+        mCamera = null;
+    };
+
+
+    /////////////////////////////////////////////////
+    //                 gps                         //
+    /////////////////////////////////////////////////
+
+    private void prepareGPSLocation() {
+        locationManager = (LocationManager)
+                this.getSystemService(Context.LOCATION_SERVICE);
+        // Listener to handle incoming location updates
+        locationListener = new LocationListener() {
+            public void onLocationChanged(Location location) {
+                // Executed when a location update is received
+                newLocationReceived(location);
+            }
+
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+            }
+
+            public void onProviderEnabled(String provider) {
+            }
+
+            public void onProviderDisabled(String provider) {
+            }
+        };
+    }
+
+    private void newLocationReceived(Location location) {
+        double lat = location.getLatitude();
+        double lng = location.getLongitude();
+        Geocoder geoCoder = new Geocoder(this, Locale.getDefault());
+        StringBuilder builder = new StringBuilder();
+        List<Address> address = null;
+        try {
+            address = geoCoder.getFromLocation(lat, lng, 1);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if (address != null && !address.isEmpty()) {
+            int maxLines = address.get(0).getMaxAddressLineIndex();
+            for (int i = 0; i < maxLines; i++) {
+                String addressStr = address.get(0).getAddressLine(i);
+                builder.append(addressStr);
+                builder.append(" ");
+            }
+            currentLocation = builder.toString();
+            updateLocationDisplay();
+        }
+    }
+
+    private void updateLocationDisplay() {
+        TextView txtLocation = findViewById(R.id.txtLocation);
+        String message = getString(R.string.txt_location) + currentLocation;
+        txtLocation.setText(message);
+    }
+
+
+    private void requestGPSLocation() {
+        if (handlePermissions(Manifest.permission.ACCESS_FINE_LOCATION, GPS_PERMISSION)) {
+            try {
+                locationManager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        0, 0, locationListener);
+            } catch (SecurityException e) {
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] results) {
+        if ((results.length > 0) && requestCode == GPS_PERMISSION &&
+                (results[0] == PackageManager.PERMISSION_GRANTED)) {
+            try {
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
+                        0, 0, locationListener);
+            } catch (SecurityException e) {
+            }
+        }
+    }
+
+    /////////////////////////////////////////////////
+    //               animations                    //
+    /////////////////////////////////////////////////
+
+    private void addAnimatedCoin() {
+        RelativeLayout layoutGame = findViewById(R.id.layoutGame);
+        ImageView coin = findViewById(R.id.coin);
+        ImageView animatedCoin = new ImageView(this);
+        animatedCoin.setImageResource(R.drawable.coin);
+        animatedCoin.setX(coin.getX());
+        animatedCoin.setY(coin.getY());
+        layoutGame.addView(animatedCoin);
+        animatedCoin.animate()
+                .alpha(0f)
+                .setDuration(mLongAnimationDuration)
+                .setListener(new Animator.AnimatorListener() {
+                    @Override
+                    public void onAnimationStart(Animator animation) { }
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        layoutGame.removeView(animatedCoin);
+                    }
+                    @Override
+                    public void onAnimationCancel(Animator animation) { }
+                    @Override
+                    public void onAnimationRepeat(Animator animation) { }
+                });
+    }
+
+    private void rotatePlayer() {
+        player.animate()
+                .rotationBy(360f)
+                .setDuration(mLongAnimationDuration)
+                .setListener(null);
     }
 }

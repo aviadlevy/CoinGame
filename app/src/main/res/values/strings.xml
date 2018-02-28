@@ -19,4 +19,6 @@
     <string name="menu_stop_game_text">Stop Game</string>
     <string name="default_current_location">No GPS data..</string>
     <string name="txt_location">Location:</string>
+    <string name="banner_ad_unit_id">ca-app-pub-3940256099942544/6300978111</string>
+    <string name="menu_show_ad">Show Ad</string>
 </resources>

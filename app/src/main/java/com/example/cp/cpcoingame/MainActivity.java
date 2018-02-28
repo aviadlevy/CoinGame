@@ -41,6 +41,10 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.ads.AdListener;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.InterstitialAd;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
@@ -95,11 +99,13 @@ public class MainActivity extends AppCompatActivity {
     private String currentLocation;
     // animation
     private int mLongAnimationDuration = 0;
+    // ads
+    private InterstitialAd mInterstitialAd;
+
 
     /////////////////////////////////////////////////
     //                 init                        //
     /////////////////////////////////////////////////
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -118,6 +124,7 @@ public class MainActivity extends AppCompatActivity {
         initializeSoundPool();
         prepareGPSLocation();
         requestGPSLocation();
+        initializeInterstitialAd();
         mLongAnimationDuration = getResources().getInteger(android.R.integer.config_longAnimTime);
     }
 
@@ -390,9 +397,21 @@ public class MainActivity extends AppCompatActivity {
             case R.id.menuTimeUnlimit:
                 gameTimerStartValue = -1;
                 return true;
+            case R.id.menuShowAd:
+                return showAd();
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    private boolean showAd() {
+        if (mInterstitialAd.isLoaded()) {
+            mInterstitialAd.show();
+        } else {
+            Toast.makeText(this,"Not ready yet..",
+                    Toast.LENGTH_SHORT).show();
+        }
+        return true;
     }
 
     private boolean setGameTime(int gameTimerStartValue) {
@@ -431,7 +450,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void showWebPageScreen() {
         Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setData(Uri.parse("http://google.com/"));
+        intent.setData(Uri.parse("https://github.com/aviadlevy/CoinGame"));
         startActivity(intent);
     }
 
@@ -683,5 +702,30 @@ public class MainActivity extends AppCompatActivity {
                 .rotationBy(360f)
                 .setDuration(mLongAnimationDuration)
                 .setListener(null);
+    }
+
+
+    /////////////////////////////////////////////////
+    //                   ads                       //
+    /////////////////////////////////////////////////
+
+    private void requestNewInterstitial() {
+        AdRequest adRequest = new AdRequest.Builder()
+        .addTestDevice("SEE_YOUR_LOGCAT_TO_GET_YOUR_DEVICE_ID")
+                .build();
+        mInterstitialAd.loadAd(adRequest);
+    }
+
+    private void initializeInterstitialAd() {
+        mInterstitialAd = new InterstitialAd(this);
+        mInterstitialAd.setAdUnitId("ca-app-pub-3940256099942544/1033173712");
+        mInterstitialAd.setAdListener(new AdListener() {
+            @Override
+            public void onAdClosed() {
+                requestNewInterstitial();
+                // your code here such as start new game;
+            }
+        });
+        requestNewInterstitial();
     }
 }

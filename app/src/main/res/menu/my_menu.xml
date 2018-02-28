@@ -16,6 +16,9 @@
         android:id="@+id/menuShowWebPage"
         android:title="@string/menu_show_web_page" />
     <item
+        android:id="@+id/menuShowAd"
+        android:title="@string/menu_show_ad" />
+    <item
         android:id="@+id/menuSettings"
         android:title="@string/menu_settings">
         <menu>
